@@ -1,0 +1,24 @@
+erl_tempcache is a small caching server for erlang use.
+It loosely follows the Memcached client api, and 
+generally works the same way.
+
+To use:
+Compile all erl files (erl followed by c(filename).) -- 
+    eventually there will be a makefile for this.
+
+Start by calling cache_sup:start_link().
+Functions are as follows:
+add(Key, Val, [Timeout]) -> ok or {error, exists}
+set(Key, Val, [Timeout]) -> ok
+get(Key) -> {ok, Val}
+del(Key) -> ok
+
+cache_free:get_max_size defines the maximum size in bytes--
+  eventually this will be pushed to a config file.
+
+TODO:
+Eventually, I would like to make this into a full caching server 
+with an http interface to store JSON objects. It was primarily
+created for use in an auth project that loads and caches
+users and data from disc.
+
