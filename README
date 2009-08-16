@@ -10,7 +10,7 @@ Start by calling cache_sup:start_link().
 Functions are as follows:
 add(Key, Val, [Timeout]) -> ok or {error, exists}
 set(Key, Val, [Timeout]) -> ok
-get(Key) -> {ok, Val}
+get(Key) -> {ok, Val} or none
 del(Key) -> ok
 
 cache_free:get_max_size defines the maximum size in bytes--
