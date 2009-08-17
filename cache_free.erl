@@ -8,7 +8,7 @@ get_max_size() ->
     16000000.
 
 check_table() ->
-    gen_server:cast(?MODULE, check),
+    gen_server:call(?MODULE, check),
     {ok, checking}.
 
 start_link(Tab, Internal) ->
@@ -30,20 +30,34 @@ get_mem_size(Tab) ->
     H*erlang:system_info(wordsize).
 
 expire(Tab, Internal) ->
-    io:format("Checking expired cache items.~n",[]),
     Now = cache:timeout_to_secs(0),
-    F = ets:fun2ms(fun({Key, {Timeout, _, _}}) when Timeout /= 0, Timeout > Now -> Key end),
-    L = ets:select(Internal, F),
+    L = ets:foldl(
+        fun({_, {Timeout, _, _}}=A, Acc) ->
+                if Timeout /= 0->
+                    Acc;
+                Timeout > Now ->
+                    [A | Acc];
+                true ->
+                    Acc
+                end
+        end, [], Internal),
+
+
+%    F = ets:fun2ms(fun({Key, {Timeout, _, _}}) when Timeout /= 0, Timeout > Now -> Key end),
+%    L = ets:select(Internal, F),
     lists:foreach(fun(Item) -> ets:delete(Tab, Item) end, L),
-    io:format("Deleted ~p expired items.",[length(L)]),
     L.
     
 delete_first_item(Tab, Internal, []) ->
     %% we want to keep the most accessed items in the cache, so we add
     %% a minute to the expiration per time it's been accessed
-    io:format("Building delete list. ~n",[]),
-    F = ets:fun2ms(fun({Key, {_, Accessed, Created}}) -> {Key, (Accessed + 1)*60 + Created} end),
-    L = ets:select(Internal, F),
+    %    F = ets:fun2ms(fun({Key, {_, Accessed, Created}}) -> {Key, (Accessed + 1)*60 + Created} end),
+    %L = ets:select(Internal, F),
+    L = ets:foldl(
+        fun({Key, {_, Accessed, Created}}, Acc) ->
+                [{Key, Accessed + 1* 60 + Created}|Acc] end,
+            [], Internal),
+    
     F2 = fun(A, B) ->
             {_, Value1} = A,
             {_, Value2} = B,
@@ -55,20 +69,19 @@ delete_first_item(Tab, Internal, []) ->
     delete_first_item(Tab, Internal, lists:sort(F2, L));
     
 delete_first_item(Tab, Internal, [{Key, _}|T]) ->
-    io:format("Deleting first item: ~p~n",[Key]),
-    ets:delete(Tab, Key),
-    ets:delete(Internal, Key),
+    catch(ets:delete(Tab, Key)),
+    catch(ets:delete(Internal, Key)),
     check_table(Tab, Internal, true, T).
 
 
+        
+
+
 check_table(Tab, Internal, Expired, OrderOfDelete) ->
-    io:format("Checking table for items to delete.~n",[]),
     TabSize = get_mem_size(Tab),
     MaxSize = get_max_size(),
-    io:format("Table size: ~p out of max: ~p~n",[TabSize, MaxSize]),
     if
         TabSize > MaxSize ->
-            io:format("Need to delete some items due to table size.~n",[]),
             case Expired of
                 false->
                     expire(Tab, Internal),
@@ -77,19 +90,17 @@ check_table(Tab, Internal, Expired, OrderOfDelete) ->
                     delete_first_item(Tab, Internal, OrderOfDelete)
                 end;
         true ->
-            io:format("Not deleting items because table size is under max.~n",[]),
             ok
     end.
 
-handle_cast(_Msg, {Tab, Internal}) -> 
+handle_cast(check, {Tab, Internal}) -> 
     check_table(Tab, Internal, false, []),
-    {noreply, {Tab, Internal}}.
-
-handle_call(check, From, {Tab, Internal}) -> 
-    gen_server:reply(From, {ok, checking}),
-    check_table(Tab, Internal, false, []),
-
     {noreply, {Tab, Internal}};
+handle_cast(_, State) -> {noreply, State}.
+
+handle_call(check, _From, {Tab, Internal}) -> 
+    check_table(Tab, Internal, false, []),
+    {reply, checking, {Tab, Internal}};
 
 handle_call(_, _, State) -> {noreply, State}.
 

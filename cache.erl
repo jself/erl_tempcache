@@ -1,6 +1,6 @@
 -module(cache).
 -behaviour(gen_server).
--export([start_link/0, set/3, set/2, get/1, add/3, add/2, del/1]).
+-export([start_link/2, set/3, set/2, get/1, add/3, add/2, del/1, start/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([timeout_to_secs/1]).
 
@@ -26,13 +26,13 @@ add(Key, Val) ->
 del(Key)->
     rpc({del, Key}).
 
-start_link() -> 
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start() ->
+    cache_sup:start_link().
 
-init([])->
-    Tab = ets:new(cache_tab, [set, public]),
-    Internal = ets:new(cache_internal, [set, public]),
-    cache_free_sup:start_link(Tab, Internal),
+start_link(Tab, Internal) -> 
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Tab, Internal], []).
+
+init([Tab, Internal])->
     {ok, {Tab, Internal}}.
 
 timeout_to_secs(Timeout) ->
@@ -40,14 +40,11 @@ timeout_to_secs(Timeout) ->
     Mega*1000000 + Sec + Timeout.
 
 is_valid_key(Key, Internal) ->
-    io:format("Checking key is not expired.~n",[]),
     A = ets:lookup(Internal, Key),
     case A of 
         [] -> 
-            io:format("Key is not valid.~n",[]),
             false;
         [H|_] ->
-            io:format("Key is valid.~n",[]),
             {_, {Timeout, _, _}} = H,
             Now = timeout_to_secs(0),
             if 
@@ -61,7 +58,6 @@ is_valid_key(Key, Internal) ->
     end.
 
 get_key(Key, Tab) ->
-    io:format("Getting Key",[]),
     %todo: increase Get
     A = ets:lookup(Tab, Key),
     case A of
@@ -69,7 +65,6 @@ get_key(Key, Tab) ->
             none;
         [X|_] ->
             {_, Val} = X,
-            io:format("Returning value: ~p~n", [Val]),
             Val
     end.
 
