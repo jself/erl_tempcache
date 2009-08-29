@@ -1,11 +1,48 @@
 -module(cache_free).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, start_link/2]).
--export([get_mem_size/1, check_table/0]).
+-export([get_mem_size/1, check_table/0, get_max_size/0, start_config/0]).
 -include_lib("stdlib/include/ms_transform.hrl").
 -behaviour(gen_server).
 
+get_config_val(_, []) ->
+    {error, not_found};
+get_config_val(Name, [{Name, Value}|_]) ->
+    {ok, Value};
+get_config_val(Name, [_|T]) ->
+    get_config_val(Name, T).
+
+loop_config(Vars) ->
+    receive 
+        reload ->
+            Res = file:consult("settings.cfg"),
+            loop_config(Res);
+        {From, get, Name} ->
+            From!get_config_val(Name, Vars),
+            loop_config(Vars);
+        change ->
+            ?MODULE:loop_confiG(Vars);
+        stop ->
+            ok;
+        _ ->
+            loop_config(Vars)
+     end.
+
+get_config(Name) ->
+    cache_free_config!{self(), get, Name},
+    receive
+        A -> A
+    after 1000 ->
+        {error, timeout}
+    end.
+
+        
+start_config() ->
+    {ok, Res} = file:consult("settings.cfg"),
+    register(cache_free_config, spawn_link(fun() -> loop_config(Res) end)).
+    
 get_max_size() ->
-    16000000.
+    {ok, Size} = get_config(maxsize),
+    Size.
 
 check_table() ->
     gen_server:call(?MODULE, check),
@@ -15,6 +52,7 @@ start_link(Tab, Internal) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Tab, Internal], []).
 
 init([Tab, Internal]) ->
+    start_config(),
     {ok, {Tab, Internal}}.
 
 
@@ -101,8 +139,12 @@ handle_call(check, _From, {Tab, Internal}) ->
 handle_call(_, _, State) -> {noreply, State}.
 
 handle_info(_, State) -> {noreply, State}.
-terminate(_Reason, _State) -> ok.
-code_change(_Oldversion, State, _Extra) -> {ok, State}.
+terminate(_Reason, _State) -> 
+    cache_free_config!stop,
+    ok.
+code_change(_Oldversion, State, _Extra) -> 
+    cache_free_config!change,
+    {ok, State}.
 
 
 

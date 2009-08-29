@@ -13,8 +13,7 @@ set(Key, Val, [Timeout]) -> ok
 get(Key) -> {ok, Val} or none
 del(Key) -> ok
 
-cache_free:get_max_size defines the maximum size in bytes--
-  eventually this will be pushed to a config file.
+maxsize is defined in settings.cfg
 
 TODO:
 Eventually, I would like to make this into a full caching server 

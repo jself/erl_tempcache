@@ -10,7 +10,8 @@ start_link() ->
 start_link(shell) ->
     Tab = ets:new(cache_tab, [set, public]),
     Internal = ets:new(cache_internal, [set, public]),
-    supervisor:start(cache_sup, [Tab, Internal]).
+    {ok, Pid} = supervisor:start_link(cache_sup, [Tab, Internal]),
+    unlink(Pid).
 
 
 init(Args) ->
