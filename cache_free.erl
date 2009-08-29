@@ -43,16 +43,12 @@ expire(Tab, Internal) ->
         end, [], Internal),
 
 
-%    F = ets:fun2ms(fun({Key, {Timeout, _, _}}) when Timeout /= 0, Timeout > Now -> Key end),
-%    L = ets:select(Internal, F),
     lists:foreach(fun(Item) -> ets:delete(Tab, Item) end, L),
     L.
     
 delete_first_item(Tab, Internal, []) ->
     %% we want to keep the most accessed items in the cache, so we add
     %% a minute to the expiration per time it's been accessed
-    %    F = ets:fun2ms(fun({Key, {_, Accessed, Created}}) -> {Key, (Accessed + 1)*60 + Created} end),
-    %L = ets:select(Internal, F),
     L = ets:foldl(
         fun({Key, {_, Accessed, Created}}, Acc) ->
                 [{Key, Accessed + 1* 60 + Created}|Acc] end,

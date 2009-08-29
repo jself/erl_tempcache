@@ -1,12 +1,12 @@
 -module(cache).
 -behaviour(gen_server).
--export([start_link/2, set/3, set/2, get/1, add/3, add/2, del/1, start/0]).
+-export([start_link/2, set/3, set/2, get/1, add/3, add/2, del/1, start/0, start_shell/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([timeout_to_secs/1]).
 
 
 rpc(Msg) ->
-    gen_server:call(cache, Msg, 2000).
+    gen_server:call({global, erl_tempcache}, Msg, 2000).
 
 set(Key, Val, Timeout) -> 
     rpc({set, Key, Val, Timeout}).
@@ -29,8 +29,11 @@ del(Key)->
 start() ->
     cache_sup:start_link().
 
+start_shell() ->
+    cache_sup:start_link(shell).
+
 start_link(Tab, Internal) -> 
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Tab, Internal], []).
+    gen_server:start_link({global, erl_tempcache}, ?MODULE, [Tab, Internal], []).
 
 init([Tab, Internal])->
     {ok, {Tab, Internal}}.
